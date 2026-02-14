@@ -16,38 +16,76 @@ const proxyIPs = [
   'cdn.xn--b6gac.eu.org', 'edgetunnel.anycast.eu.org'
 ];
 
-// ၂။ မင်းရဲ့ သီးသန့် ID (v2rayNG မှာ ဒါကို သုံးပါ)
-const userID = '90cd2a79-117d-4586-b49d-cf9949666014';
-
 export default {
   async fetch(request, env) {
     const upgradeHeader = request.headers.get('Upgrade');
     if (upgradeHeader !== 'websocket') {
-      return new Response("Phoe Thar's Private Worker is Online! ✅", { status: 200 });
+      return new Response("Phoe Thar's Smart Worker is Online! 🚀", { status: 200 });
     }
 
-    // 🔥 အမြန်ဆုံး IP ကို ရှာဖွေခြင်း (Latency စစ်စနစ်)
+    // IP ၁၀ ခုလုံးကို စစ်မယ်၊ ဒါပေမဲ့ CPU သက်သာအောင် 1.5s ပဲ အချိန်ပေးမယ်
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
     const bestIP = await Promise.any(
-      proxyIPs.slice(0, 4).map(async (ip) => {
-        const start = Date.now();
-        await fetch(`http://${ip}/cdn-cgi/trace`, { mode: 'no-cors', method: 'HEAD' });
+      proxyIPs.map(async (ip) => {
+        await fetch(`http://${ip}/cdn-cgi/trace`, { 
+          mode: 'no-cors', 
+          method: 'HEAD',
+          signal: controller.signal 
+        });
         return ip;
       })
     ).catch(() => proxyIPs[0]);
 
-    // WebSocket Tunneling စတင်ခြင်း
-    return await handleTunnel(request, bestIP);
+    clearTimeout(timeout);
+    return await vlessOverWSHandler(request, bestIP);
   }
 };
 
-async function handleTunnel(request, proxyIP) {
-  // Cloudflare Socket API ကို သုံးထားတဲ့ အမြန်ဆုံး Tunneling Logic
-  const socketPair = new WebSocketPair();
-  const [client, server] = Object.values(socketPair);
+async function vlessOverWSHandler(request, proxyIP) {
+  const webSocketPair = new WebSocketPair();
+  const [client, server] = Object.values(webSocketPair);
   server.accept();
+  let remoteSocket = null;
 
-  // (Internal logic for VLESS packet handling)
-  // 
+  server.addEventListener('message', async (event) => {
+    const message = event.data;
+    if (remoteSocket) {
+      const writer = remoteSocket.writable.getWriter();
+      await writer.write(message);
+      writer.releaseLock();
+      return;
+    }
+
+    const chunk = new Uint8Array(message);
+    const vlessVersion = chunk[0];
+    const vlessId = chunk.slice(1, 17);
+
+    if (vlessVersion !== 0 || !validateUUID(vlessId)) {
+      server.close();
+      return;
+    }
+
+    try {
+      remoteSocket = connect({ hostname: proxyIP, port: 443 });
+      const writer = remoteSocket.writable.getWriter();
+      await writer.write(chunk);
+      writer.releaseLock();
+
+      remoteSocket.readable.pipeTo(new WritableStream({
+        write(data) { server.send(data); },
+        close() { server.close(); }
+      }));
+    } catch (e) {
+      server.close();
+    }
+  });
 
   return new Response(null, { status: 101, webSocket: client });
+}
+
+function validateUUID(vlessId) {
+  const hexId = Array.from(vlessId).map(b => b.toString(16).padStart(2, '0')).join('');
+  return hexId === userID.replace(/-/g, '');
 }
