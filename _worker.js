@@ -11,9 +11,9 @@ let userID = '0eadd30d-4335-4abf-ba50-97a110f6adbe';
 // https://www.nslookup.io/domains/cdn-all.xn--b6gac.eu.org/dns-records/
 // ၁။ Phoe Thar ရဲ့ အမြန်ဆုံး IP စုစည်းမှု
 const proxyIPs = [
+    '104.16.51.111', '104.17.98.7', '104.18.2.161', '172.67.73.39',
   '104.16.2.34', '104.16.88.251', '104.16.93.161', '104.16.98.232',
-  '188.114.96.1', '188.114.97.1', '78.194.169.74', '45.63.100.187',
-  'cdn.xn--b6gac.eu.org', 'edgetunnel.anycast.eu.org'
+  '188.114.96.1', '188.114.97.1'
 ];
 
 export default {
