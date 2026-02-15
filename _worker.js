@@ -1,17 +1,11 @@
 // @ts-nocheck
-// ptvpn v1.0 - Created by Phoe Thar
-// Last Update: 2024-05-24
-
+// ptvpn v1.1 - Fixed by Gemini for Phoe Thar
 import { connect } from 'cloudflare:sockets';
-// How to generate your own UUID:
-// https://www.uuidgenerator.net/
+
 let userID = '0eadd30d-4335-4abf-ba50-97a110f6adbe';
 
-// https://www.nslookup.io/domains/cdn.xn--b6gac.eu.org/dns-records/
-// https://www.nslookup.io/domains/cdn-all.xn--b6gac.eu.org/dns-records/
-// ၁။ Phoe Thar ရဲ့ အမြန်ဆုံး IP စုစည်းမှု
 const proxyIPs = [
-    '104.16.51.111', '104.17.98.7', '104.18.2.161', '172.67.73.39',
+  '104.16.51.111', '104.17.98.7', '104.18.2.161', '172.67.73.39',
   '104.16.2.34', '104.16.88.251', '104.16.93.161', '104.16.98.232',
   '188.114.96.1', '188.114.97.1'
 ];
@@ -23,20 +17,20 @@ export default {
       return new Response("Phoe Thar's Smart Worker is Online! 🚀", { status: 200 });
     }
 
-    // IP ၁၀ ခုလုံးကို စစ်မယ်၊ ဒါပေမဲ့ CPU သက်သာအောင် 1.5s ပဲ အချိန်ပေးမယ်
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1500);
 
+    // အောက်က အပိုင်းကို တစ်ခါပဲ သုံးရပါမယ်
     const bestIP = await Promise.any(
       proxyIPs.map(async (ip) => {
-        await fetch(`http://${ip}/cdn-cgi/trace`, { 
-          mode: 'no-cors', 
+        const response = await fetch(`http://${ip}/cdn-cgi/trace`, { 
           method: 'HEAD',
           signal: controller.signal 
         });
-        return ip;
+        if (response.ok) return ip;
+        throw new Error("fail");
       })
-    ).catch(() => proxyIPs[0]);
+    ).catch(() => proxyIPs[0]); 
 
     clearTimeout(timeout);
     return await vlessOverWSHandler(request, bestIP);
@@ -68,6 +62,7 @@ async function vlessOverWSHandler(request, proxyIP) {
     }
 
     try {
+      // Proxy IP နဲ့ ချိတ်တဲ့နေရာမှာ 443 (TLS) သုံးမယ်
       remoteSocket = connect({ hostname: proxyIP, port: 443 });
       const writer = remoteSocket.writable.getWriter();
       await writer.write(chunk);
